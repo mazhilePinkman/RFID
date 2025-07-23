@@ -18,6 +18,8 @@ def upload_data(app, data):
         mode = app.inventory_mode.get()
         if mode == "录入":
             api_endpoint = "/api/register"
+        elif mode == "安装":
+            api_endpoint = "/api/install"
         else:
             api_endpoint = "/api/inventory"
 
@@ -66,31 +68,45 @@ def upload_data(app, data):
         # 恢复上传按钮
         app.ui_queue.put(("enable_upload",))
 
-
 def prepare_upload_data(app):
     """准备上传数据"""
     mode = app.inventory_mode.get()
     data = {
         "operation": mode,
-        "tids": []  # 修改为只包含TID的列表
+        "tids": []
     }
 
-    # 只添加TID，不包含时间戳
     for tid in app.tid_counts.keys():
-        # 录入模式下添加管道类型
+        item = {
+            "tid": tid
+        }
+
+        # 根据不同模式添加所需信息
         if mode == "录入":
-            # 创建一个包含TID和管道类型的对象
-            item = {
-                "tid": tid,
-                "pipe_type": app.selected_pipe_type.get()
-            }
-            data["tids"].append(item)
-        else:
-            # 其他模式只添加TID字符串
-            data["tids"].append(tid)
+            if not all([app.selected_pipe_type.get(),
+                       app.selected_pipe_material.get(),
+                       app.selected_pipe_size.get()]):
+                raise ValueError("录入模式下必须选择管道类型、材质和尺寸")
+            item.update({
+                "pipe_type": app.selected_pipe_type.get(),
+                "pipe_material": app.selected_pipe_material.get(),
+                "pipe_size": app.selected_pipe_size.get()
+            })
+        elif mode == "安装":
+            if not all([app.longitude_var.get(), app.latitude_var.get()]):
+                raise ValueError("安装模式下必须填写经纬度")
+            item.update({
+                "longitude": app.longitude_var.get(),
+                "latitude": app.latitude_var.get()
+            })
+        elif mode == "出库":
+            if not app.installation_address_var.get():
+                raise ValueError("出库模式下必须填写安装地址")
+            item["installation_address"] = app.installation_address_var.get()
+
+        data["tids"].append(item)
 
     return data
-
 
 def fetch_pipe_types(app):
     """从服务器获取管道类型列表"""
@@ -113,6 +129,52 @@ def fetch_pipe_types(app):
                 app.log_message(f"获取管道类型失败: HTTP {response.getcode()}")
     except Exception as e:
         app.log_message(f"获取管道类型时出错: {str(e)}")
+
+
+def fetch_pipe_materials(app):
+    """从服务器获取管道材质列表"""
+    try:
+        server_ip = "192.168.0.1"
+        server_port = 8080
+        url = f"http://{server_ip}:{server_port}/api/pipeMaterials"
+
+        context = ssl._create_unverified_context()
+        request = urllib.request.Request(url)
+        request.add_header("User-Agent", "RFID Scanner App")
+
+        with urllib.request.urlopen(request, context=context, timeout=10) as response:
+            if response.getcode() == 200:
+                response_data = response.read().decode("utf-8")
+                pipe_materials = json.loads(response_data).get("pipe_materials", [])
+                app.ui_queue.put(("update_pipe_materials", pipe_materials))
+                app.log_message("管道材质列表更新成功")
+            else:
+                app.log_message(f"获取管道材质失败: HTTP {response.getcode()}")
+    except Exception as e:
+        app.log_message(f"获取管道材质时出错: {str(e)}")
+
+
+def fetch_pipe_sizes(app):
+    """从服务器获取管道尺寸列表"""
+    try:
+        server_ip = "192.168.0.1"
+        server_port = 8080
+        url = f"http://{server_ip}:{server_port}/api/pipeSizes"
+
+        context = ssl._create_unverified_context()
+        request = urllib.request.Request(url)
+        request.add_header("User-Agent", "RFID Scanner App")
+
+        with urllib.request.urlopen(request, context=context, timeout=10) as response:
+            if response.getcode() == 200:
+                response_data = response.read().decode("utf-8")
+                pipe_sizes = json.loads(response_data).get("pipe_sizes", [])
+                app.ui_queue.put(("update_pipe_sizes", pipe_sizes))
+                app.log_message("管道尺寸列表更新成功")
+            else:
+                app.log_message(f"获取管道尺寸失败: HTTP {response.getcode()}")
+    except Exception as e:
+        app.log_message(f"获取管道尺寸时出错: {str(e)}")
 
 
 def upload_to_server(app):
