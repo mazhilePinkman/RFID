@@ -7,7 +7,7 @@ API_BASE_URL = "https://smart-pipeline-parent-admin.kmyszkj.com/admin"
 API_LOGIN = f"{API_BASE_URL}/sys/auth/pwdLogin"
 
 # 上传芯片数据接口
-API_UPLOAD_CHIP = f"{API_BASE_URL}/pipeline/chip/add"
+API_UPLOAD_CHIP = f"{API_BASE_URL}/pipeline/chip/batchAdd"
 
 # 获取管道参数分页列表接口
 API_PIPE_PARAMS = f"{API_BASE_URL}/pipeline/category/page"

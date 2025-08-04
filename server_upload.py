@@ -4,6 +4,7 @@ import queue
 import time
 import config  # 导入配置
 
+
 def upload_data(app, data):
     """上传数据到服务器"""
     if not app.authorization:
@@ -11,11 +12,20 @@ def upload_data(app, data):
         app.ui_queue.put(("messagebox", "未登录", "请先登录后再上传数据", "error"))
         return
 
+    # 检查是否已获取位置信息
+    try:
+        longitude = float(app.longitude_var.get().split(": ")[1])
+        latitude = float(app.latitude_var.get().split(": ")[1])
+    except (ValueError, IndexError):
+        app.log_message("错误: 请先获取位置信息")
+        app.ui_queue.put(("messagebox", "上传失败", "请先获取位置信息", "error"))
+        return
+
     app.ui_queue.put(("update_ui", "button_state", "upload_btn", "disabled"))
     app.ui_queue.put(("update_ui", "button_state", "upload_btn", "上传中...", None, "text"))
 
     try:
-        url = config.API_UPLOAD_CHIP  # 使用配置的上传URL
+        url = config.API_UPLOAD_CHIP
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "RFID Scanner App",
@@ -26,34 +36,40 @@ def upload_data(app, data):
         selected_param = app.selected_pipe_type.get()
         pipe_params = selected_param.split()
         material_name = pipe_params[0]
-        diameter_size = pipe_params[1] if len(pipe_params) > 1 else ""
+        diameter_size = pipe_params[1] if len(pipe_params) > 1 else "0"
 
-        # 获取对应的id
         pipeline_category_id = app.pipe_params_map.get(selected_param)
-
         if not pipeline_category_id:
             raise Exception("无法找到选中管道参数对应的ID")
 
-        # 准备上传数据
-        for tid in app.tid_counts.keys():
-            json_data = {
-                "chipId": tid,
-                "materialName": material_name,
-                "diameterSize": diameter_size,
-                "pipelineCategoryId": pipeline_category_id
-            }
+        # 准备上传数据列表
+        upload_data = []
+        for item in app.tree.get_children():
+            values = app.tree.item(item)['values']
+            if values[0] == "√":  # 检查是否选中
+                tid = values[2]  # TID在第三列
+                item_data = {
+                    "chipId": tid,
+                    "pipelineCategoryId": pipeline_category_id,
+                    "materialName": material_name,
+                    "diameterSize": float(diameter_size),
+                    "longitude": longitude,
+                    "latitude": latitude
+                }
+                upload_data.append(item_data)
 
-            import requests
-            resp = requests.post(url, json=json_data, headers=headers, timeout=config.REQUEST_TIMEOUT)
-            resp.raise_for_status()
-            result = resp.json()
+        import requests
+        resp = requests.post(url, json=upload_data, headers=headers, timeout=config.REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        result = resp.json()
 
-            if result.get("code") == 1:
-                app.log_message(f"TID {tid} 上传成功")
-            else:
-                app.log_message(f"TID {tid} 上传失败: {result.get('message', '未知错误')}")
-
-        app.ui_queue.put(("messagebox", "上传完成", "数据上传已完成", "info"))
+        if result.get("code") == 1:
+            app.log_message("数据上传成功")
+            app.ui_queue.put(("messagebox", "上传成功", "数据已成功上传", "info"))
+        else:
+            error_msg = f"上传失败: {result.get('message', '未知错误')}"
+            app.log_message(error_msg)
+            app.ui_queue.put(("messagebox", "上传失败", error_msg, "error"))
 
     except Exception as e:
         error_msg = f"上传数据时出错: {str(e)}"
@@ -85,25 +101,33 @@ def upload_to_server(app):
 
 def prepare_upload_data(app):
     """准备上传数据"""
-    mode = app.inventory_mode.get()
-    data = {
-        "operation": mode,
-        "tids": []
-    }
+    # 检查是否已获取位置信息
+    try:
+        longitude = float(app.longitude_var.get().split(": ")[1])
+        latitude = float(app.latitude_var.get().split(": ")[1])
+    except (ValueError, IndexError):
+        return None
 
-    # 只上传选中的TID
+    selected_param = app.selected_pipe_type.get()
+    pipe_params = selected_param.split()
+    material_name = pipe_params[0]
+    diameter_size = pipe_params[1] if len(pipe_params) > 1 else "0"
+    pipeline_category_id = app.pipe_params_map.get(selected_param)
+
+    data = []
     for item in app.tree.get_children():
         values = app.tree.item(item)['values']
         if values[0] == "√":  # 检查是否选中
             tid = values[2]  # TID在第三列
-            if mode == "录入":
-                item_data = {
-                    "tid": tid,
-                    "pipe_type": app.selected_pipe_type.get()
-                }
-                data["tids"].append(item_data)
-            else:
-                data["tids"].append(tid)
+            item_data = {
+                "chipId": tid,
+                "pipelineCategoryId": pipeline_category_id,
+                "materialName": material_name,
+                "diameterSize": float(diameter_size),
+                "longitude": longitude,
+                "latitude": latitude
+            }
+            data.append(item_data)
 
     return data
 

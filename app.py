@@ -50,7 +50,7 @@ class RFIDScannerApp:
         self.uhf_reader.auto_connect()
 
         # 启动管道类型获取
-        self.fetch_pipe_types()
+        #self.fetch_pipe_types()
 
     def show_login_dialog(self):
         LoginDialog(self.root, self)
@@ -176,7 +176,7 @@ class RFIDScannerApp:
         self.pipe_type_combo.pack(side=tk.LEFT, padx=5)
 
         # 上传按钮
-        self.upload_btn = ttk.Button(control_frame, text="上传", command=self.upload_to_server, state=tk.DISABLED)
+        self.upload_btn = ttk.Button(control_frame, text="上传", command=self.upload_to_server, state=tk.NORMAL)
         self.upload_btn.pack(side=tk.LEFT, padx=5)
 
         # 状态标签
@@ -205,7 +205,7 @@ class RFIDScannerApp:
 
         # 配置表格列
         self.tree.heading("select", text="选择")
-        self.tree.column("select", width=20, anchor=tk.CENTER)
+        self.tree.column("select", width=1, anchor=tk.CENTER)
         self.tree.heading("id", text="编号")
         self.tree.column("id", width=50, anchor=tk.CENTER, stretch=tk.NO)
         self.tree.heading("tid", text="TID")
