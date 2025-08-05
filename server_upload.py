@@ -131,6 +131,7 @@ def prepare_upload_data(app):
 
     return data
 
+
 def fetch_pipe_params(app):
     """登录后获取管道参数列表"""
     if not app.authorization:
@@ -139,7 +140,7 @@ def fetch_pipe_params(app):
         return
 
     try:
-        url = config.API_PIPE_PARAMS + "?order=&asc=false&page=1&limit=10&materialName=&diameterSize=&t=1754286788316"
+        url = config.API_PIPE_PARAMS
         headers = {
             "User-Agent": "RFID Scanner App",
             "Authorization": app.authorization
@@ -147,20 +148,27 @@ def fetch_pipe_params(app):
         import requests
         resp = requests.get(url, headers=headers, timeout=config.REQUEST_TIMEOUT)
         resp.raise_for_status()
-        data = resp.json()
+        response_data = resp.json()  # 获取完整响应
+        data_list = response_data.get('data', [])  # 从data字段取出列表
 
         # 存储id映射关系
-        app.pipe_params_map = {}  # 添加到app实例
+        app.pipe_params_map = {}
         param_list = []
 
-        for item in data.get('data', {}).get('list', []):
+        for item in data_list:
             name = item.get('materialName', '')
             size = item.get('diameterSize', '')
+
+            # 处理可能为空的值
+            name = name.strip() if name else ''
+            size = str(size).strip() if size is not None else ''
+
             param_key = f"{name} {size}".strip()
             param_list.append(param_key)
             # 保存id映射
             app.pipe_params_map[param_key] = item.get('id')
 
+        print(f"获取管道参数响应: {response_data}")  # 调整为打印完整响应
         app.ui_queue.put(("update_pipe_types", param_list))
         app.log_message("管道参数列表更新成功")
     except Exception as e:

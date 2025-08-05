@@ -7,6 +7,7 @@ import queue
 from uhf_reader import UHFReader
 import requests
 import config  # 导入配置
+from storage_dialog import StorageDialog
 
 class RFIDScannerApp:
     def __init__(self, root):
@@ -273,7 +274,10 @@ class RFIDScannerApp:
 
     def start_scanning(self):
         """开始扫描RFID标签"""
-        self.uhf_reader.start_scanning()
+        if self.inventory_mode.get() == "入库":
+            self.show_storage_dialog()
+        else:
+            self.uhf_reader.start_scanning()
 
     def stop_scanning(self):
         """停止扫描"""
@@ -563,6 +567,13 @@ class RFIDScannerApp:
 
         # 在新线程中执行请求
         threading.Thread(target=do_get_location, daemon=True).start()
+
+    def show_storage_dialog(self):
+        """显示入库对话框"""
+        if hasattr(self, 'storage_dialog'):
+            self.storage_dialog.destroy()
+        self.storage_dialog = StorageDialog(self.root, self)
+        self.storage_dialog.protocol("WM_DELETE_WINDOW", self.storage_dialog.on_closing)
 
 class LoginDialog(simpledialog.Dialog):
     def __init__(self, parent, app):
